@@ -34,7 +34,27 @@ public class SystemSetting extends BaseActivity {
 
     public void sanduSetting(View view) {
         Intent intent = new Intent();
-        intent.setClass(SystemSetting.this, SanduSetting.class);
+        intent.setClass(SystemSetting.this, FrequencyModule.class);
+        startActivity(intent);
+    }
+
+    public void AccSetting(View view) {
+        Intent intent = new Intent();
+        intent.setClass(SystemSetting.this,AcurateModule.class);
+        startActivity(intent);
+    }
+
+    public void AgileSetting(View view) {
+
+        Intent intent = new Intent();
+        intent.setClass(SystemSetting.this,AgileModule.class);
+        startActivity(intent);
+    }
+
+    public void RegSetting(View view) {
+
+        Intent intent = new Intent();
+        intent.setClass(SystemSetting.this,RegisterModule.class);
         startActivity(intent);
     }
 }

@@ -20,35 +20,46 @@
 
     <Button
         android:id="@+id/button9"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:text="Button"
+        android:layout_width="142dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="80dp"
+        android:background="@drawable/kzjdtj"
+        android:onClick="AccSetting"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/sandubar" />
+        app:layout_constraintStart_toEndOf="@+id/button10"
+        app:layout_constraintTop_toBottomOf="@+id/sandubar"
+        app:layout_constraintVertical_bias="0.501" />
 
     <Button
         android:id="@+id/button10"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:text="Button"
+        android:layout_width="142dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="92dp"
+        android:background="@drawable/dtpltj"
         android:onClick="sanduSetting"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/button9"
-        app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/sandubar" />
 
     <Button
         android:id="@+id/button11"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:text="Button"
+        android:layout_width="142dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="80dp"
+        android:background="@drawable/lmdtj"
+        android:onClick="AgileSetting"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/button9"
+        app:layout_constraintTop_toBottomOf="@+id/sandubar" />
+
+    <Button
+        android:id="@+id/button18"
+        android:layout_width="142dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="80dp"
+        android:background="@drawable/regist"
+        android:onClick="RegSetting"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/button11"
         app:layout_constraintTop_toBottomOf="@+id/sandubar" />
 </androidx.constraintlayout.widget.ConstraintLayout>
