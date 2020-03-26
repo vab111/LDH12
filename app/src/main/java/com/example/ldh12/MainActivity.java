@@ -1,23 +1,22 @@
 package com.example.ldh12;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
 import android.Manifest;
 import android.app.AlertDialog;
 import android.app.Service;
-import android.app.usage.UsageEvents;
-import android.bluetooth.BluetoothClass;
 import android.content.ComponentName;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
-import android.util.ArrayMap;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -26,6 +25,8 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.core.app.ActivityCompat;
 
 import com.android.guard.CommunicationService;
 import com.android.guard.DataType;
@@ -47,15 +48,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import ca.hss.heatmaplib.HeatMap;
-import ca.hss.heatmaplib.HeatMapMarkerCallback;
 
 public class MainActivity extends BaseActivity {
     private static final String TAG_SERVICE = "LDH21";
-    private HeatMap heatMap;
     private int Delta=0;
     private TextView deltaText;
     private CommunicationService mService;
@@ -89,12 +84,22 @@ public class MainActivity extends BaseActivity {
     private int y;
     private int h;
     private int BHeight;
+    private TextView alertText;
+    private Button pindi;
+    private Button caidian;
+    private Button shouzidong;
+    private Bitmap baseBitmap;
+    private Canvas canvasHandler;
+    private Paint pain;
+    private long sumHeight;
+    private boolean isBHset = false;
+    private locationData Item;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         deltaText = findViewById(R.id.textView16);
-        heatMap = findViewById(R.id.heatmap);
+
         centerCover = findViewById(R.id.imageView);
         JState = findViewById(R.id.textView2);
         curHeight = findViewById(R.id.textView9);
@@ -102,14 +107,12 @@ public class MainActivity extends BaseActivity {
         pindao = findViewById(R.id.textView6);
         pianYi = findViewById(R.id.textView16);
         DaoState = findViewById(R.id.imageView4);
-        heatMap.setMinimum(0.0);
-        heatMap.setMaximum(100.0);
-        heatMap.setRadius(100);
-        heatMap.setMaxDrawingWidth(400);
-        Map<Float, Integer> colorStops = new ArrayMap<>();
-        colorStops.put(0.0f, 0xffee42f4);
-        colorStops.put(1.0f, 0xffeef442);
-        heatMap.setColorStops(colorStops);
+        alertText = findViewById(R.id.textView11);
+        pindi = findViewById(R.id.button4);
+        caidian = findViewById(R.id.button5);
+        shouzidong = findViewById(R.id.button8);
+
+
         upBtn = findViewById(R.id.button6);
         upBtn.setOnTouchListener(new View.OnTouchListener() {
             @Override
@@ -119,7 +122,7 @@ public class MainActivity extends BaseActivity {
                         heartData.heart[2] |= 0x04;
                         break;
                     case MotionEvent.ACTION_MOVE:
-                        heartData.heart[2] |= 0x04;
+
                         break;
                     case MotionEvent.ACTION_UP:
                         heartData.heart[2] &= 0xfc;
@@ -138,7 +141,6 @@ public class MainActivity extends BaseActivity {
                         heartData.heart[2] |= 0x08;
                         break;
                     case MotionEvent.ACTION_MOVE:
-                        heartData.heart[2] |= 0x08;
                         break;
                     case MotionEvent.ACTION_UP:
                         heartData.heart[2] &= 0xf7;
@@ -148,7 +150,11 @@ public class MainActivity extends BaseActivity {
                 return false;
             }
         });
-        createHeatmap();
+        pain = new Paint();
+        pain.setColor(Color.RED);
+        pain.setStrokeWidth(1.0f);
+        pain.setStyle(Paint.Style.FILL);
+
         initCanService();
         initSerialPort();
         coon = new ServiceConnection() {
@@ -167,9 +173,9 @@ public class MainActivity extends BaseActivity {
         checkPermission();
         fileAccess = new FileAccess();
         initSetting();
+        Item = new locationData();
     }
-    private void initSetting()
-    {
+    private void initSetting(){
         fileAccess.getData();
         int acc = (int) (fileAccess.item.accurent*10);
         heartData.heart[3] = (byte) ((acc%256) & 0xff);
@@ -193,16 +199,7 @@ public class MainActivity extends BaseActivity {
             Log.e(TAG_SERVICE, "checkPermission: 已经授权！");
         }
     }
-    private void createHeatmap()
-    {
 
-        Random rand = new Random();
-        for (int i = 0; i < 38; i++) {
-            HeatMap.DataPoint point = new HeatMap.DataPoint(rand.nextFloat(), rand.nextFloat(), rand.nextDouble() * 100.0);
-            heatMap.addData(point);
-        }
-        //heatMap.setMarkerCallback(new HeatMapMarkerCallback.CircleHeatMapMarker(0xff9400D3));
-    }
     public void goSetting(View view) {
         Intent intent = new Intent();
         intent.setClass(MainActivity.this,SystemSetting.class);
@@ -320,6 +317,10 @@ public class MainActivity extends BaseActivity {
                                 }
                             }
                         });
+
+                        Item.x = x;
+                        Item.y = y;
+                        Item.height = h;
                         if (isCollect)
                         {
                             if (curP.x==0)
@@ -331,6 +332,7 @@ public class MainActivity extends BaseActivity {
                                 data.add(item);
                                 curP.x = x;
                                 curP.y = y;
+                                sumHeight = h;
                             }
                             else
                             {
@@ -341,6 +343,7 @@ public class MainActivity extends BaseActivity {
                                     item.y = y;
                                     item.height = h;
                                     data.add(item);
+                                    sumHeight+=h;
                                     if (x>max_x)
                                         max_x = x;
                                     if (x<min_x)
@@ -355,6 +358,12 @@ public class MainActivity extends BaseActivity {
                                         min_h = h;
                                 }
                             }
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    alertText.setText(String.format("正在采点中，当前数量：%d",data.size()));
+                                }
+                            });
                         }
                         if (!strArr[9].equals(""))
                             x = (int) Double.parseDouble(strArr[9]);
@@ -523,7 +532,7 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-
+                        pindao.setText(String.format("%d",pindao1));
                     }
                 });
                 break;
@@ -531,8 +540,7 @@ public class MainActivity extends BaseActivity {
         }
     }
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event)
-    {			switch (keyCode) {
+    public boolean onKeyDown(int keyCode, KeyEvent event){			switch (keyCode) {
         case KeyEvent.KEYCODE_BACK:
             AlertDialog.Builder build = new AlertDialog.Builder(this);
             build.setTitle("系统提示").setMessage("确定要退出吗？");
@@ -556,34 +564,61 @@ public class MainActivity extends BaseActivity {
     }
 
     public void AutoMode(View view) {
-        if (!isAuto)
+        if (!isAuto){
             heartData.heart[2]|=0x01;
-        else
-            heartData.heart[2]&=0xfe;
+            shouzidong.setBackgroundResource(R.drawable.autonative);
+            isAuto = true;
+        }
+        else {
+            isAuto = false;
+            heartData.heart[2] &= 0xfe;
+            shouzidong.setBackgroundResource(R.drawable.motive);
+        }
 
     }
 
     public void startTask(View view) {
-        if (isTask)
-            heartData.heart[2]|=0x02;
-        else
-            heartData.heart[2]&=0xfd;
+        if (isTask) {
+            heartData.heart[2] |= 0x02;
+            pindi.setBackgroundResource(R.drawable.home_collect);
+            isTask = false;
+        }
+        else {
+            isTask = true;
+            heartData.heart[2] &= 0xfd;
+            pindi.setBackgroundResource(R.drawable.endwork);
+            if (isBHset)
+                setBH();
+            else
+            {
+                BHeight = Item.height;
+                setBH();
+            }
+        }
     }
 
     public void startCollect(View view) {
         if (isCollect) {
             isCollect = false;
+            if (data.size()>0)
+                sumHeight/=data.size();
+            BHeight = (int) sumHeight;
+            isBHset = true;
             //savaData();
-            setBH();
-        }
-        else {
-            //isCollect = true;
+            alertText.setText("正在生成等高图...");
             data = new ArrayList();
             readData();
+            handlData();
+            alertText.setText("等高图生成完成！");
+            caidian.setBackgroundResource(R.drawable.home_start);
+        }
+        else {
+            isCollect = true;
+            isBHset = false;
+            caidian.setBackgroundResource(R.drawable.endcollect);
         }
     }
-    private void savaData()
-    {
+    private void savaData(){
         File fs = new File(Environment.getExternalStorageDirectory()+"/LDH21/data.json");
         try {
             FileOutputStream outputStream =new FileOutputStream(fs);
@@ -606,8 +641,7 @@ public class MainActivity extends BaseActivity {
             e.printStackTrace();
         }
     }
-    private void readData()
-    {
+    private void readData(){
         File fs = new File(Environment.getExternalStorageDirectory()+"/LDH21/data.json");
         if (fs.exists()) {
             String result = "";
@@ -630,6 +664,15 @@ public class MainActivity extends BaseActivity {
             for (int i=0;i<data.size();i++)
             {
                 locationData item = (locationData) data.get(i);
+                if (i==0)
+                {
+                    max_x = item.x;
+                    max_y = item.y;
+                    max_h = item.height;
+                    min_x = item.x;
+                    min_y = item.y;
+                    min_h = item.height;
+                }
                 if (item.x>max_x)
                     max_x = item.x;
                 if (item.x<min_x)
@@ -647,26 +690,10 @@ public class MainActivity extends BaseActivity {
             }
 
         }
-        heatMap.clearData();
-        float x_length = max_x-min_x;
-        float y_length = max_y-min_y;
-        double h_length = max_h-min_h;
-        for (int i = 0; i < data.size(); i++) {
-            locationData item = (locationData) data.get(i);
-            float x = max_x-item.x;
-            x/=x_length;
-            float y = max_y-item.y;
-            y/=y_length;
-            float h = max_h-item.height;
-            h/=h_length;
-            HeatMap.DataPoint point = new HeatMap.DataPoint(x, y, h * 100.0);
-            heatMap.addData(point);
-        }
-        heatMap.forceRefresh();
-        centerCover.setVisibility(View.INVISIBLE);
+
+
     }
-    private void setPY()
-    {
+    private void setPY(){
         if (Delta < 0) {
             heartData.heart[7] = (byte) ((Delta % 256-1) & 0xff);
 
@@ -675,8 +702,7 @@ public class MainActivity extends BaseActivity {
 
         }
     }
-    private void setBH()
-    {
+    private void setBH(){
         heartData.heart[6] = (byte) ((BHeight % 256) & 0xff);
         heartData.heart[5] = (byte) ((BHeight/256) & 0xff);
     }
@@ -685,6 +711,1774 @@ public class MainActivity extends BaseActivity {
 
         super.onActivityResult(requestCode, resultCode, data);
         initSetting();
+    }
+    public int getcolor(int i){
+        int color = Color.argb(255,255,255,255);
+        switch (i)
+        {
+            case 0:
+                color = Color.argb(255,255,0,0);
+                break;
+            case 1:
+                color = Color.argb(255,255,255,0);
+                break;
+            case 2:
+                color = Color.argb(255,255,0,255);
+                break;
+            case 3:
+                color = Color.argb(255,0,255,0);
+                break;
+            case 4:
+                color = Color.argb(255,0,255,255);
+                break;
+            case 5:
+                color = Color.argb(255,0,0,255);
+                break;
+            case 6:
+                color = Color.argb(255,127,0,0);
+                break;
+            case 7:
+                color = Color.argb(255,127,127,0);
+                break;
+            case 8:
+                color = Color.argb(255,127,0,127);
+                break;
+            case 9:
+                color = Color.argb(255,0,127,0);
+                break;
+            case 10:
+                color = Color.argb(255,0,0,127);
+                break;
+            case 11:
+                color = Color.argb(255,0,127,127);
+                break;
+        }
+        return color;
+    }
+    public int caculateValue(int x,int y,double[][] pic,int xlength,int ylength){
+        double sum=0;
+        double sum1=0;
+
+        for(int i=0;i<xlength;i++)
+        {
+            for (int j=0;j<ylength;j++) {
+                if (pic[i][j]>-1) {
+                    double result;
+                    result = 1.0f / ((i - x) * (i - x) + (j - y) * (j - y));
+                    sum += result;
+                    sum1 += (result * pic[i][j]);
+                }
+            }
+        }
+        int aa = (int) (sum1/sum);
+        return aa;
+    }
+    public void isoband(double[][] data, double[] thArray, int xtotal,int ytotal,int xlength,int ylength) {
+        int x, y, k;
+        int count = 0;
+        int squareWidth = xtotal / (xlength - 1);
+        int squareHeight = ytotal / (ylength - 1);
+        Path[] dstPolygonVec = new Path[thArray.length - 1];
+
+        // 等值线的每一个阈值
+        for (k = 0; k < thArray.length - 1; k++) {
+
+            // 3值化
+            int[][] stateMat = new int[xlength][ylength];
+            for (y = 0; y < ylength; y++) {
+                for (x = 0; x < xlength; x++) {
+                    if (data[x][y] < thArray[k]) {
+                        stateMat[x][y] = 0;
+                    } else {
+                        if (data[x][y] < thArray[k + 1]) {
+                            stateMat[x][y] = 1;
+                        } else {
+                            stateMat[x][y] = 2;
+                        }
+                    }
+                }
+            }
+
+            int x1, y1, x2, y2, x3, y3, x4, y4;
+            Path polygon = new Path();
+            for (y = 0; y < ylength - 1; y++) {
+
+                int ymin = ytotal*y / (ylength - 1);
+                int ymax = ytotal*(y + 1) / (ylength - 1);
+
+                for (x = 0; x < xlength - 1; x++) {
+
+                    int xmin = xtotal*x / (xlength - 1);
+                    int xmax = xtotal*(x + 1) / (xlength - 1) ;
+
+                    // square 四角坐标
+                    Point p7 = new Point(xmin, ymin);
+                    Point p9 = new Point(xmax, ymin);
+                    Point p3 = new Point(xmax, ymax);
+                    Point p1 = new Point(xmin, ymax);
+
+                    // square 四角数值
+                    int d7 = (int) data[x][y];
+                    int d9 = (int) data[x + 1][y];
+                    int d3 = (int) data[x + 1][y + 1];
+                    int d1 = (int) data[x][y + 1];
+                    int mid;
+
+                    // isoband的顶点坐标
+                    Point pt1 = null;
+                    Point pt2 = null;
+                    Point pt3 = null;
+                    Point pt4 = null;
+                    Point pt5 = null;
+                    Point pt6 = null;
+                    Point pt7 = null;
+                    Point pt8 = null;
+
+                    String squareState = getSquareState(stateMat, x, y);
+                    switch (squareState)        // total 81 cases
+                    {
+                        // no color
+                        case "2222":
+                        case "0000":
+                            break;
+                        // square
+                        case "1111":
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        // triangle                8 cases
+                        case "2221":
+                            x1 = (int) (p1.x + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (p1.y - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, p1.y);
+                            pt2 = new Point(p7.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2212":
+                            y1 = (int) (p3.y - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (p3.x - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(p9.x, y1);
+                            pt2 = new Point(x2, p1.y);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2122":
+                            x1 = (int) (p9.x - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y2 = (int) (p9.y + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            pt1 = new Point(x1, p7.y);
+                            pt2 = new Point(p9.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1222":
+                            x1 = (int) (p7.x + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y2 = (int) (p7.y + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, p7.y);
+                            pt2 = new Point(p7.x, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "0001":
+                            x1 = (int) (p3.x - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (p7.y + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, p1.y);
+                            pt2 = new Point(p7.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0010":
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x2, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0100":
+                            x1 = (int) (p7.x + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y2 = (int) (p3.y - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            pt1 = new Point(x1, p9.y);
+                            pt2 = new Point(p9.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1000":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        // trapezoid        8 cases
+                        case "2220":
+                            x1 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, p1.y);
+                            pt2 = new Point(x2, p1.y);
+                            pt3 = new Point(p7.x, y1);
+                            pt4 = new Point(p7.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+
+                            break;
+                        case "2202":
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x1 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmax, y2);
+                            pt3 = new Point(x1, ymax);
+                            pt4 = new Point(x2, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2022":
+                            x1 = (int) (p9.x - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (p9.x - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (p9.y + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (p9.y + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            pt1 = new Point(x1, p9.y);
+                            pt2 = new Point(x2, p9.y);
+                            pt3 = new Point(p9.x, y1);
+                            pt4 = new Point(p9.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0222":
+                            x1 = (int) (p7.x + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (p7.x + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (p7.y + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y2 = (int) (p7.y + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, p7.y);
+                            pt2 = new Point(x2, p7.y);
+                            pt3 = new Point(p7.x, y1);
+                            pt4 = new Point(p7.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0002":
+                            x1 = (int) (p3.x - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x2 = (int) (p3.x - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y1 = (int) (p7.y + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y2 = (int) (p7.y + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, p1.y);
+                            pt2 = new Point(x2, p1.y);
+                            pt3 = new Point(p1.x, y1);
+                            pt4 = new Point(p1.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0020":
+                            y1 = (int) (p9.y + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (p9.y + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x1 = (int) (p1.x + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x2 = (int) (p1.x + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(p3.x, y1);
+                            pt2 = new Point(p3.x, y2);
+                            pt3 = new Point(x1, p3.y);
+                            pt4 = new Point(x2, p3.y);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0200":
+                            x1 = (int) (p7.x + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (p7.x + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (p3.y - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (p3.y - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            pt1 = new Point(x1, p9.y);
+                            pt2 = new Point(x2, p9.y);
+                            pt3 = new Point(p9.x, y1);
+                            pt4 = new Point(p9.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2000":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmin, y1);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        // rectangle 12 cases
+                        case "0011":
+                            y1 = (int) (p9.y + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (p7.y + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(p9.x, y1);
+                            pt2 = new Point(p7.x, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0110":
+                            x1 = (int) (p7.x + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (p1.x + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, p7.y);
+                            pt2 = new Point(x2, p1.y);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1100":
+                            y1 = (int) (p3.y - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (p1.y - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(p9.x, y1);
+                            pt2 = new Point(p7.x, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1001":
+                            x1 = (int) (p9.x - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (p3.x - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, p7.y);
+                            pt2 = new Point(x2, p1.y);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2211":
+                            y1 = (int) (p3.y - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (p1.y - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2112":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1122":
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareWidth);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1221":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2200":
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y4 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmax, y2);
+                            pt3 = new Point(xmin, y3);
+                            pt4 = new Point(xmin, y4);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2002":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x4 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(x4, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0022":
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y4 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmax, y2);
+                            pt3 = new Point(xmin, y3);
+                            pt4 = new Point(xmin, y4);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0220":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x4 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(x4, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        // hexagon 12 cases
+                        case "0211":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2110":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            pt3 = new Point(xmin, y1);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+
+                            break;
+                        case "1102":
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x1 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x1, ymax);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1021":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(x2, ymax);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2011":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0112":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            pt3 = new Point(xmin, y1);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1120":
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x1 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x1, ymax);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1201":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(x2, ymax);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2101":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0121":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1012":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1210":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        // pentagon        24 cases
+                        case "1211":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2111":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1112":
+                            x1 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymax);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1121":
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x2, ymax);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1011":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "0111":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1110":
+                            x1 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymax);
+                            pt2 = new Point(xmin, y2);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1101":
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x2, ymax);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "1200":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "0120":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(x3, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0012":
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            x1 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x1, ymax);
+                            pt3 = new Point(xmin, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2001":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(xmin, y1);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1022":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2102":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(x3, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2210":
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            x1 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(x1, ymax);
+                            pt3 = new Point(xmin, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0221":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(xmin, y1);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1002":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(xmin, y1);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "2100":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmin, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0210":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(x3, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "0021":
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x1 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmax, y2);
+                            pt3 = new Point(x1, ymax);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "1220":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymax);
+                            pt3 = new Point(x3, ymax);
+                            pt4 = new Point(xmin, y1);
+                            polygon.moveTo(p7.x, p7.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(p7.x, p7.y);
+                            polygon.close();
+                            break;
+                        case "0122":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmin, y2);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(p9.x, p9.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2012":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(x3, ymax);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p3.x, p3.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        case "2201":
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x1 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(xmax, y1);
+                            pt2 = new Point(xmax, y2);
+                            pt3 = new Point(x1, ymax);
+                            pt4 = new Point(xmin, y3);
+                            polygon.moveTo(pt1.x, pt1.y);
+                            polygon.lineTo(pt2.x, pt2.y);
+                            polygon.lineTo(pt3.x, pt3.y);
+                            polygon.lineTo(p1.x, p1.y);
+                            polygon.lineTo(pt4.x, pt4.y);
+                            polygon.lineTo(pt1.x, pt1.y);
+                            polygon.close();
+                            break;
+                        // saddles - 8 sided        2 cases
+                        case "2020":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x3 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x4 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y3 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y4 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmax, y2);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(x4, ymax);
+                            pt7 = new Point(xmin, y3);
+                            pt8 = new Point(xmin, y4);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            } else if (mid < thArray[k + 1]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "0202":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x3 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x4 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y3 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y4 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmax, y2);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(x4, ymax);
+                            pt7 = new Point(xmin, y3);
+                            pt8 = new Point(xmin, y4);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.close();
+                            } else if (mid < thArray[k + 1]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt7.x, pt7.y);
+                                polygon.lineTo(pt8.x, pt8.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            }
+                            break;
+                        // saddles:        6 sided                4 cases
+                        case "0101":
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                x1 = (int) (p7.x + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                                y2 = (int) (p3.y - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                                pt1 = new Point(x1, p9.y);
+                                pt2 = new Point(p9.x, y2);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                x1 = (int) (p3.x - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                                y2 = (int) (p7.y + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                                pt1 = new Point(x1, p1.y);
+                                pt2 = new Point(p7.x, y2);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+
+                                x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                                y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                                x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                                y2 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                                pt1 = new Point(x1, ymin);
+                                pt2 = new Point(xmax, y1);
+                                pt3 = new Point(x2, ymax);
+                                pt4 = new Point(xmin, y2);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "1010":
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                                y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                                pt1 = new Point(x1, ymin);
+                                pt2 = new Point(xmin, y2);
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(p7.x, p7.y);
+
+                                y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                                x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                                pt1 = new Point(p9.x, y1);
+                                pt2 = new Point(x2, p1.y);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                                y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                                x2 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                                y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                                pt1 = new Point(x1, ymin);
+                                pt2 = new Point(xmax, y1);
+                                pt3 = new Point(x2, ymax);
+                                pt4 = new Point(xmin, y2);
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(p7.x, p7.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "2121":
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                                y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                                x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                                y2 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                                pt1 = new Point(x1, ymin);
+                                pt2 = new Point(xmax, y1);
+                                pt3 = new Point(x2, ymax);
+                                pt4 = new Point(xmin, y2);
+
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                x1 = (int) (p9.x - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                                y2 = (int) (p9.y + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                                pt1 = new Point(x1, p7.y);
+                                pt2 = new Point(p9.x, y2);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+
+                                x1 = (int) (p1.x + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                                y2 = (int) (p1.y - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                                pt1 = new Point(x1, p1.y);
+                                pt2 = new Point(p7.x, y2);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "1212":
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                                y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                                x2 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                                y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                                pt1 = new Point(x1, ymin);
+                                pt2 = new Point(xmax, y1);
+                                pt3 = new Point(x2, ymax);
+                                pt4 = new Point(xmin, y2);
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(p7.x, p7.y);
+                                polygon.close();
+                            } else {
+                                x1 = (int) (p7.x + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                                y2 = (int) (p7.y + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                                pt1 = new Point(x1, p7.y);
+                                pt2 = new Point(p7.x, y2);
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(p7.x, p7.y);
+
+                                y1 = (int) (p3.y - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                                x2 = (int) (p3.x - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                                pt1 = new Point(p9.x, y1);
+                                pt2 = new Point(x2, p1.y);
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        // saddles 7 sided                8 cases
+                        case "2120":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(x3, ymax);
+                            pt5 = new Point(xmin, y2);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "2021":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x3 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmax, y2);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt5.x, pt5.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "1202":
+                            x1 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y3 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(x2, ymax);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(xmin, y3);
+
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(p7.x, p7.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(p7.x, p7.y);
+
+                                polygon.moveTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "0212":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(x3, ymax);
+                            pt5 = new Point(xmin, y2);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k + 1]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "0102":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x2 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            x3 = (int) (xmax - (thArray[k + 1] - d3) / (d1 - d3) * squareWidth);
+                            y2 = (int) (ymin + (thArray[k + 1] - d7) / (d1 - d7) * squareHeight);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(x2, ymax);
+                            pt4 = new Point(x3, ymax);
+                            pt5 = new Point(xmin, y2);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(p9.x, p9.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "0201":
+                            x1 = (int) (xmin + (thArray[k] - d7) / (d9 - d7) * squareWidth);
+                            x2 = (int) (xmin + (thArray[k + 1] - d7) / (d9 - d7) * squareWidth);
+                            y1 = (int) (ymax - (thArray[k + 1] - d3) / (d9 - d3) * squareHeight);
+                            y2 = (int) (ymax - (thArray[k] - d3) / (d9 - d3) * squareHeight);
+                            x3 = (int) (xmax - (thArray[k] - d3) / (d1 - d3) * squareWidth);
+                            y3 = (int) (ymin + (thArray[k] - d7) / (d1 - d7) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(xmax, y2);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt5.x, pt5.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.close();
+                            } else {
+
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.moveTo(pt5.x, pt5.y);
+                                polygon.lineTo(p1.x, p1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "1020":
+                            x1 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            y2 = (int) (ymin + (thArray[k + 1] - d9) / (d3 - d9) * squareHeight);
+                            x2 = (int) (xmin + (thArray[k + 1] - d1) / (d3 - d1) * squareWidth);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y3 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(xmax, y1);
+                            pt3 = new Point(xmax, y2);
+                            pt4 = new Point(x2, ymax);
+                            pt5 = new Point(x3, ymax);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(p7.x, p7.y);
+
+                                polygon.moveTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.close();
+                            } else {
+                                polygon.moveTo(p7.x, p7.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(p7.x, p7.y);
+                                polygon.close();
+                            }
+                            break;
+                        case "2010":
+                            x1 = (int) (xmax - (thArray[k + 1] - d9) / (d7 - d9) * squareWidth);
+                            x2 = (int) (xmax - (thArray[k] - d9) / (d7 - d9) * squareWidth);
+                            y1 = (int) (ymin + (thArray[k] - d9) / (d3 - d9) * squareHeight);
+                            x3 = (int) (xmin + (thArray[k] - d1) / (d3 - d1) * squareWidth);
+                            y2 = (int) (ymax - (thArray[k] - d1) / (d7 - d1) * squareHeight);
+                            y3 = (int) (ymax - (thArray[k + 1] - d1) / (d7 - d1) * squareHeight);
+                            pt1 = new Point(x1, ymin);
+                            pt2 = new Point(x2, ymin);
+                            pt3 = new Point(xmax, y1);
+                            pt4 = new Point(x3, ymax);
+                            pt5 = new Point(xmin, y2);
+                            pt6 = new Point(xmin, y3);
+                            mid = (d7 + d9 + d3 + d1) / 4;
+                            if (mid < thArray[k]) {
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+
+                                polygon.moveTo(pt3.x, pt3.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.close();
+                            } else {
+
+                                polygon.moveTo(pt1.x, pt1.y);
+                                polygon.lineTo(pt2.x, pt2.y);
+                                polygon.lineTo(pt3.x, pt3.y);
+                                polygon.lineTo(p3.x, p3.y);
+                                polygon.lineTo(pt4.x, pt4.y);
+                                polygon.lineTo(pt5.x, pt5.y);
+                                polygon.lineTo(pt6.x, pt6.y);
+                                polygon.lineTo(pt1.x, pt1.y);
+                                polygon.close();
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            dstPolygonVec[k] = polygon;
+            pain.setColor(getcolor(k));
+            canvasHandler.drawPath(polygon, pain);
+
+        }
+        centerCover.setImageBitmap(baseBitmap);
+    }
+    public String getSquareState(int[][] mat,int x,int y) {
+        String str = new String();
+        str = "";
+        str += mat[x][y];
+        str += mat[x+1][y];
+        str += mat[x+1][y+1];
+        str += mat[x][y+1];
+        return str;
+    }
+    public void handlData() {
+        int x_length = (max_x-min_x)/10;
+        int y_length = (max_y-min_y)/10;
+        int h_length = max_h-min_h;
+        double[][] data_mW =new double[x_length+1][y_length+1];
+        for (int i=0;i<x_length+1;i++) {
+            for (int j=0;j<y_length+1;j++)
+                data_mW[i][j] = -1;
+        }
+        double[] levels_mW = new double[5];
+        for (int i=0;i<5;i++)
+            levels_mW[i] = min_h+i*h_length/4;
+        for (int i=0;i<data.size();i++)
+        {
+            locationData item = (locationData) data.get(i);
+            int x = (max_x-item.x)/10;
+            int y = (item.y-min_y)/10;
+            int h = item.height-min_h;
+            data_mW[x][y] = item.height;
+        }
+        for (int i=0;i<x_length+1;i++) {
+            for (int j=0;j<y_length+1;j++) {
+                if (data_mW[i][j] == -1) {
+                    data_mW[i][j] = caculateValue(i, j,data_mW,x_length+1,y_length+1);
+
+                }
+
+            }
+        }
+
+        int pic_width=0;
+        int pic_height = 0;
+        if ((double)(x_length/y_length)>744/461)
+        {
+            pic_width = 744;
+            pic_height = 744*y_length/x_length;
+        }
+        else
+        {
+            pic_height = 461;
+            pic_width = 461*x_length/y_length;
+        }
+
+        baseBitmap = Bitmap.createBitmap(pic_width,pic_width, Bitmap.Config.ARGB_8888);
+        canvasHandler = new Canvas(baseBitmap);
+        isoband(data_mW, levels_mW, pic_width, pic_height, x_length, y_length);
     }
 }
 

@@ -47,6 +47,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="60dp"
         android:text="确定"
+        android:onClick="confirm"
         app:layout_constraintBottom_toBottomOf="@+id/textView26"
         app:layout_constraintStart_toEndOf="@+id/editText4" />
 

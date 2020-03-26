@@ -1,12 +1,11 @@
 package com.example.ldh12;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import androidx.appcompat.widget.Toolbar;
 
 public class AcurateModule extends BaseActivity {
     private Toolbar toolbar;
@@ -20,7 +19,7 @@ public class AcurateModule extends BaseActivity {
         editText = findViewById(R.id.editText2);
         fileAccess = new FileAccess();
         fileAccess.getData();
-        editText.setText(String.format("%f",fileAccess.item.accurent));
+        editText.setText(String.format("%.1f",fileAccess.item.accurent));
         setToolbar();
     }
     private void setToolbar() {
@@ -41,6 +40,9 @@ public class AcurateModule extends BaseActivity {
     public void confirm(View view) {
         float freqency = Float.parseFloat(editText.getText().toString()) ;
         fileAccess.item.accurent = freqency;
+        int num = (int) (freqency*10);
+
+        heartData.heart[3] = (byte) ((num%256)&0xff);
         fileAccess.saveData();
         Toast.makeText(AcurateModule.this, "设置成功！",Toast.LENGTH_SHORT);
     }

@@ -1,12 +1,11 @@
 package com.example.ldh12;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import androidx.appcompat.widget.Toolbar;
 
 public class AgileModule extends BaseActivity {
     private Toolbar toolbar;
@@ -42,6 +41,7 @@ public class AgileModule extends BaseActivity {
         int freqency = Integer.parseInt(editText.getText().toString()) ;
         fileAccess.item.agile = freqency;
         fileAccess.saveData();
+        heartData.heart[4] = (byte) ((freqency%256)&0xff);
         Toast.makeText(AgileModule.this, "设置成功！",Toast.LENGTH_SHORT);
 
     }
