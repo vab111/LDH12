@@ -125,7 +125,7 @@ public class MainActivity extends BaseActivity {
 
                         break;
                     case MotionEvent.ACTION_UP:
-                        heartData.heart[2] &= 0xfc;
+                        heartData.heart[2] &= 0xfb;
                         break;
 
                 }
@@ -343,6 +343,8 @@ public class MainActivity extends BaseActivity {
                                     item.y = y;
                                     item.height = h;
                                     data.add(item);
+                                    curP.x = x;
+                                    curP.y = y;
                                     sumHeight+=h;
                                     if (x>max_x)
                                         max_x = x;
@@ -604,6 +606,8 @@ public class MainActivity extends BaseActivity {
                 sumHeight/=data.size();
             BHeight = (int) sumHeight;
             isBHset = true;
+            curP.x = 0;
+            curP.y = 0;
             //savaData();
             alertText.setText("正在生成等高图...");
             data = new ArrayList();
@@ -717,19 +721,19 @@ public class MainActivity extends BaseActivity {
         switch (i)
         {
             case 0:
-                color = Color.argb(255,255,0,0);
+                color = Color.argb(255,136,180,241);
                 break;
             case 1:
-                color = Color.argb(255,255,255,0);
+                color = Color.argb(255,188,146,210);
                 break;
             case 2:
-                color = Color.argb(255,255,0,255);
+                color = Color.argb(255,226,194,243);
                 break;
             case 3:
-                color = Color.argb(255,0,255,0);
+                color = Color.argb(255,187,239,250);
                 break;
             case 4:
-                color = Color.argb(255,0,255,255);
+                color = Color.argb(255,247,253,239);
                 break;
             case 5:
                 color = Color.argb(255,0,0,255);
@@ -2476,9 +2480,9 @@ public class MainActivity extends BaseActivity {
             pic_width = 461*x_length/y_length;
         }
 
-        baseBitmap = Bitmap.createBitmap(pic_width,pic_width, Bitmap.Config.ARGB_8888);
+        baseBitmap = Bitmap.createBitmap(744,461, Bitmap.Config.ARGB_8888);
         canvasHandler = new Canvas(baseBitmap);
-        isoband(data_mW, levels_mW, pic_width, pic_height, x_length, y_length);
+        isoband(data_mW, levels_mW, 744, 461, x_length, y_length);
     }
 }
 
