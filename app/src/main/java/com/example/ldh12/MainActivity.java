@@ -78,7 +78,6 @@ public class MainActivity extends BaseActivity {
     private TextView curHeight;
     private TextView baseHeight;
     private TextView pindao;
-    private TextView pianYi;
     private ImageView DaoState;
     private int x;
     private int y;
@@ -105,7 +104,6 @@ public class MainActivity extends BaseActivity {
         curHeight = findViewById(R.id.textView9);
         baseHeight = findViewById(R.id.textView10);
         pindao = findViewById(R.id.textView6);
-        pianYi = findViewById(R.id.textView16);
         DaoState = findViewById(R.id.imageView4);
         alertText = findViewById(R.id.textView11);
         pindi = findViewById(R.id.button4);
@@ -282,19 +280,19 @@ public class MainActivity extends BaseActivity {
                         if (!strArr[6].equals(""))
                             y = (int) (Double.parseDouble(strArr[6]) * 10);
                         if (!strArr[3].equals(""))
-                            h = (int) (Double.parseDouble(strArr[3]) * 10);
+                            h = (int) (Double.parseDouble(strArr[3]) * 100);
 
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
                                 curHeight.setText(String.format("%dcm", h));
-                                if (!isAuto) {
-                                    BHeight = h;
+                                if (!isTask) {
+
                                     baseHeight.setText(String.format("%dcm", h));
                                 }
                                 else
                                 {
-                                    pianYi.setText(String.format("%dcm", h-BHeight));
+                                    baseHeight.setText(String.format("%dcm", BHeight));
                                     if (h-BHeight>0)
                                     {
                                         //TODO 铲刀下
@@ -551,6 +549,7 @@ public class MainActivity extends BaseActivity {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             unbindService(coon);
+                           // mSerialPortManager.closeSerialPort();
                             System.exit(0);
                         }
                     });
@@ -580,15 +579,20 @@ public class MainActivity extends BaseActivity {
     }
 
     public void startTask(View view) {
+        if(isCollect)
+        {
+            Toast.makeText(MainActivity.this, "正在采点中...", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (isTask) {
-            heartData.heart[2] |= 0x02;
+            heartData.heart[2] &= 0xfd;
             pindi.setBackgroundResource(R.drawable.home_collect);
             isTask = false;
+            alertText.setText(null);
         }
         else {
             isTask = true;
-            heartData.heart[2] &= 0xfd;
-            pindi.setBackgroundResource(R.drawable.endwork);
+            heartData.heart[2] |= 0x02;
             if (isBHset)
                 setBH();
             else
@@ -596,11 +600,18 @@ public class MainActivity extends BaseActivity {
                 BHeight = Item.height;
                 setBH();
             }
+            alertText.setText("正在平地...");
         }
     }
 
     public void startCollect(View view) {
+        if(isTask)
+        {
+            Toast.makeText(MainActivity.this, "正在平地中...", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (isCollect) {
+            alertText.setText("正在生成等高图...");
             isCollect = false;
             if (data.size()>0)
                 sumHeight/=data.size();
@@ -608,13 +619,11 @@ public class MainActivity extends BaseActivity {
             isBHset = true;
             curP.x = 0;
             curP.y = 0;
-            //savaData();
-            alertText.setText("正在生成等高图...");
             data = new ArrayList();
             readData();
             handlData();
-            alertText.setText("等高图生成完成！");
             caidian.setBackgroundResource(R.drawable.home_start);
+            alertText.setText("等高图生成完成！");
         }
         else {
             isCollect = true;
