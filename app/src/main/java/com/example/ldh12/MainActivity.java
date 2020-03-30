@@ -573,7 +573,7 @@ public class MainActivity extends BaseActivity {
         else {
             isAuto = false;
             heartData.heart[2] &= 0xfe;
-            shouzidong.setBackgroundResource(R.drawable.motive);
+            shouzidong.setBackgroundResource(R.drawable.motive_green);
         }
 
     }
@@ -600,6 +600,7 @@ public class MainActivity extends BaseActivity {
                 BHeight = Item.height;
                 setBH();
             }
+            pindi.setBackgroundResource(R.drawable.endwork_green);
             alertText.setText("正在平地...");
         }
     }
@@ -628,7 +629,7 @@ public class MainActivity extends BaseActivity {
         else {
             isCollect = true;
             isBHset = false;
-            caidian.setBackgroundResource(R.drawable.endcollect);
+            caidian.setBackgroundResource(R.drawable.endcollect_green);
         }
     }
     private void savaData(){
